@@ -1,0 +1,17 @@
+"Strange Lvlr"
+{
+	"Idle Time"			"60.0"
+	
+	"Spawn Location 1"	"0.0 0.0 0.0" //Red, team 2
+	"Spawn Location 2"	"0.0 0.0 0.0" //Blu, team 3
+	
+	"Disable Movement"			"1"
+	"Remove Weapons"			"0"
+	"Kill Players"				"1"
+	"Respawn Player On Return"	"1"
+	
+	//Idle colors
+	"Color Idle Players"		"0"
+	"Idle Colors 1"		"255 0 0 200" //Red or team 2
+	"Idle Colors 2"		"0 0 255 200" //Blu, team 3
+}

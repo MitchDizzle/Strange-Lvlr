@@ -12,46 +12,44 @@
 #include <sdktools>
 #include <tf2_stocks>
 
-#define TIMETOIDLE 60.0 //Need to make this a cvar!
-
-#define PLUGIN_VERSION "1.0.0"
+#define PLUGIN_VERSION "1.1.0"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
 	author = "Mitchell",
-	description = "Making stranges a useless quality in tf2, since 2014 (tm)",
+	description = "Making strange a useless quality in tf2, since 2014 (tm)",
 	version = PLUGIN_VERSION,
 	url = "SnBx.info"
 }
-
+//Global vars
 new bool:isIdlePlayer[MAXPLAYERS+1];
 new Float:spawnpoints[2][3];
+new idlecolors[2][4];
 
+//Config vars and handles.
 new Handle:g_hEnabled;
-new Handle:g_hSpawnPos[2];
-new Handle:g_hIdleTime;
-
 new bool:g_bEnabled = true;
+
 new Float:g_fIdleTime = 60.0; // This is the default!
+
+#define SLVLR_None            			0
+#define SLVLR_DisableMovement			(1 << 0)
+#define SLVLR_RemoveWeapons				(1 << 1)
+#define SLVLR_KillPlayerOnIdle			(1 << 2)
+#define SLVLR_RespawnPlayerOnReturn		(1 << 3)
+#define SLVLR_ColorIdlePlayer			(1 << 4)
+new StrangeIdleConfig;
 
 public OnPluginStart()
 {
 	g_hEnabled = CreateConVar("sm_slvlr_enabled", "1", "If non-zero Strange Lvlr will be enabled.");
-	g_hIdleTime = CreateConVar("sm_slvlr_idletime", "60.0", "Time for a player to be considered idle.", _, true, 1.0);
-	//0.0 0.0 0.0 to use the default method.
-	g_hSpawnPos[0] = CreateConVar("sm_slvlr_spawnpos1", "0.0 0.0 0.0", "The Spawn position for anybody on team 2");
-	g_hSpawnPos[1] = CreateConVar("sm_slvlr_spawnpos2", "0.0 0.0 0.0", "The Spawn position for anybody on team 3");
-	
 	HookConVarChange(g_hEnabled, OnCvarChanged);
-	HookConVarChange(g_hIdleTime, OnCvarChanged);
-	HookConVarChange(g_hSpawnPos[0], OnCvarChanged);
-	HookConVarChange(g_hSpawnPos[1], OnCvarChanged);
-	AutoExecConfig();//Make sure this is before the damn version, as we don't want that in our config. (rookie mistake)
+
 	CreateConVar("sm_slvlr_version", PLUGIN_VERSION, "Strange Lvlr Version", \
 														FCVAR_PLUGIN|FCVAR_SPONLY|FCVAR_REPLICATED|FCVAR_NOTIFY);
-	
 	HookEvent("player_spawn", Event_Spawn);
 	HookEvent("player_death", Event_Death);
+	HookEvent("player_death", Event_Death_Block, EventHookMode_Pre);
 }
 
 public OnMapStart()
@@ -60,36 +58,11 @@ public OnMapStart()
 	for(new j = 0; j < 2; j++)
 		for(new k = 0; k < 3; k++)
 			spawnpoints[j][k] = 0.0;
+	LoadConfig(); // Make sure we load the config after the empty spawnpoints!
 	CreateTimer(0.1, Timer_LastInput, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 	//Reset the players back to 0.0 time
 	for(new i = 1; i <= MaxClients; i++)
 		isIdlePlayer[i] = false;
-}
-
-/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-------OnCvarChanged		(type: Convar Change)
-	Basically gets the new values and saves them.
-<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
-public OnCvarChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
-{
-	if(cvar == g_hEnabled)
-	{
-		g_bEnabled = StrEqual(newVal, "0", false) ? false : true;
-	}
-	else if(cvar == g_hIdleTime)
-	{
-		g_fIdleTime = StringToFloat(newVal);
-	}
-	else if(cvar == g_hSpawnPos[0] || cvar == g_hSpawnPos[1])
-	{
-		new String:sExploded[3][8];
-		//Split the string into a vector
-		ExplodeString(newVal, " ", sExploded, 3, 8);
-		new sp = (cvar == g_hSpawnPos[0]) ? 0 : 1;
-		spawnpoints[sp][0] = StringToFloat(sExploded[0]);
-		spawnpoints[sp][1] = StringToFloat(sExploded[1]);
-		spawnpoints[sp][2] = StringToFloat(sExploded[2]);
-	}
 }
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -116,20 +89,23 @@ public Action:Timer_LastInput(Handle:timer)
 				currentbuttons = GetClientButtons(i);
 				if(lastbuttons[i] != currentbuttons)
 				{
+					lastInput[i] = 0.0;
 					if(isIdlePlayer[i])
 					{
 						isIdlePlayer[i] = false;
 						lastbuttons[i] = currentbuttons;
-						lastInput[i] = 0.0;
+						if(StrangeIdleConfig & SLVLR_RespawnPlayerOnReturn)
+							TF2_RespawnPlayer(i);
 					}
 				}
-				else 
+				else if(!isIdlePlayer[i])
 				{
-					if(!isIdlePlayer[i])
+					lastInput[i] += 0.1;
+					if(lastInput[i] > g_fIdleTime)
 					{
-						lastInput[i] += 0.1;
-						if(lastInput[i] > g_fIdleTime)
-							isIdlePlayer[i] = true;
+						isIdlePlayer[i] = true;
+						if(StrangeIdleConfig & SLVLR_KillPlayerOnIdle)
+							ForcePlayerSuicide(i);
 					}
 				}
 			}
@@ -169,6 +145,21 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 	
 	return Plugin_Continue;
 }
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------Event_Death_Block		(type: Event)
+	This method is to block the kill feed from any idle kills,
+	this hopefully will clear up spam from people killing the idles.
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+
+public Action:Event_Death_Block(Handle:event, const String:name[], bool:dontBroadcast)
+{
+	if(!g_bEnabled)
+		return Plugin_Continue;
+	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if(isIdlePlayer[client])
+		SetEventBroadcast(event, true);
+	return Plugin_Continue;
+}
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 ------Event_Spawn		(type: Event)
@@ -187,11 +178,104 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 		return Plugin_Continue;
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
-	
+
 	new team = GetClientTeam(client);
 	if(IsVectorEmpty(spawnpoints[team-2]))
 		GetClientAbsOrigin(client, spawnpoints[team-2]);
+	//Reset the player's movement, if he can't move :<
+	if(GetEntityMoveType(client) == MOVETYPE_NONE)
+		SetEntityMoveType(client, MOVETYPE_NONE);
+	//Idle player Attributes applied when the player is spawned
+	if(isIdlePlayer[client])
+	{
+		//Color Idle Player team corrective.
+		if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
+		{
+			team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
+			SetEntityRenderColor(client, idlecolors[team][0], \
+										 idlecolors[team][1], \
+										 idlecolors[team][2], \
+										 idlecolors[team][3]);
+			SetEntityRenderMode(client, (idlecolors[team][3] < 255) ? RENDER_TRANSALPHA : RENDER_NORMAL);
+		}
+		//Disable Movement:
+		if(StrangeIdleConfig & SLVLR_DisableMovement)
+			SetEntityMoveType(client, MOVETYPE_NONE);
+		//Remove all teh weapons!
+		if(StrangeIdleConfig & SLVLR_RemoveWeapons)
+			TF2_RemoveAllWeapons(client);
+	}
 	return Plugin_Continue;
+}
+
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------OnCvarChanged		(type: Convar Change)
+	Basically gets the new values and saves them.
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+public OnCvarChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
+{
+	g_bEnabled = StrEqual(newVal, "0", false) ? false : true;
+}
+
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------LoadConfig		(type: Public Function)
+	Loads the config from
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+public LoadConfig()
+{
+	new Handle:SMC = SMC_CreateParser(); 
+	SMC_SetReaders(SMC, NewSection, KeyValue, EndSection); 
+	decl String:sPaths[PLATFORM_MAX_PATH];
+	BuildPath(Path_SM, sPaths, sizeof(sPaths),"configs/strange_lvlr_config.txt");
+	StrangeIdleConfig = SLVLR_None;
+	SMC_ParseFile(SMC, sPaths);
+	CloseHandle(SMC);
+}
+public SMCResult:NewSection(Handle:smc, const String:name[], bool:opt_quotes) { }
+public SMCResult:EndSection(Handle:smc) {
+	//Just makes so we dont color people when they have this disabled...
+	for(new j = 0; j < 2; j++)
+		for(new k = 0; k < 4; k++)
+			if( idlecolors[j][k] != 255 )
+				StrangeIdleConfig &= ~SLVLR_ColorIdlePlayer;
+}  
+public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes) 
+{
+	if(StrEqual(key, "Idle Time", false))
+		g_fIdleTime = StringToFloat(value);
+	else if(StrContains(key, "Spawn Location") != -1)
+	{
+		new String:sExploded[3][8];
+		//Split the string into a vector
+		ExplodeString(value, " ", sExploded, 3, 8);
+		new sp = (StrEqual(key, "Spawn Location 2", false)) ? 1 : 0;
+		spawnpoints[sp][0] = StringToFloat(sExploded[0]);
+		spawnpoints[sp][1] = StringToFloat(sExploded[1]);
+		spawnpoints[sp][2] = StringToFloat(sExploded[2]);
+	}
+
+	if(StrEqual(key, "Disable Movement", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_DisableMovement;
+	else if(StrEqual(key, "Remove Weapons", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_RemoveWeapons;
+	else if(StrEqual(key, "Kill Players", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_KillPlayerOnIdle;
+	else if(StrEqual(key, "Respawn Player On Return", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_RespawnPlayerOnReturn;
+	else if(StrEqual(key, "Color Idle Players", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_ColorIdlePlayer;
+
+	if(StrContains(key, "Idle Color") != -1)
+	{
+		new String:sColorExplode[4][8];
+		//Split the string into a color vector
+		ExplodeString(value, " ", sColorExplode, 4, 8);
+		new clr = (StrEqual(key, "Idle Color 2", false)) ? 1 : 0;
+		idlecolors[clr][0] = StringToInt(sColorExplode[0]);
+		idlecolors[clr][1] = StringToInt(sColorExplode[1]);
+		idlecolors[clr][2] = StringToInt(sColorExplode[2]);
+		idlecolors[clr][3] = StringToInt(sColorExplode[3]);
+	}
 }
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
