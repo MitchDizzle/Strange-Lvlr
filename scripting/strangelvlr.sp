@@ -12,7 +12,7 @@
 #include <sdktools>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "1.1.0"
+#define PLUGIN_VERSION "1.2.0"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
@@ -77,29 +77,27 @@ public Action:Timer_LastInput(Handle:timer)
 	//Keeps the timer going, but doesn't do anything too harmful to the server
 	if(!g_bEnabled)
 		return Plugin_Continue;
-	static lastbuttons[MAXPLAYERS+1];
 	static Float:lastInput[MAXPLAYERS+1];
-	new currentbuttons;
 	for(new i = 1; i <= MaxClients; i++)
 	{
 		if(IsClientInGame(i))
 		{
-			if(GetClientTeam(i) > 1)
+			if(GetClientTeam(i) > 1 && IsPlayerAlive(i))
 			{
-				currentbuttons = GetClientButtons(i);
-				if(lastbuttons[i] != currentbuttons)
+				if(GetClientButtons(i) > 0)
 				{
 					lastInput[i] = 0.0;
 					if(isIdlePlayer[i])
 					{
 						isIdlePlayer[i] = false;
-						lastbuttons[i] = currentbuttons;
 						if(StrangeIdleConfig & SLVLR_RespawnPlayerOnReturn)
 							TF2_RespawnPlayer(i);
 					}
 				}
-				else if(!isIdlePlayer[i])
+				else 
 				{
+					if(isIdlePlayer[i])
+						continue;
 					lastInput[i] += 0.1;
 					if(lastInput[i] > g_fIdleTime)
 					{
@@ -137,13 +135,20 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 		// Checks to make sure there are valid spawn points still!
 		// This also makes sure that the Event_Spawn doesn't bug out.
 		if(team >= 0 && !IsVectorEmpty(spawnpoints[team]))
-		{
-			TF2_RespawnPlayer(client); //This may need to be a 0.0 timer..
-			TeleportEntity(client, spawnpoints[team], Float:{0.0,0.0,0.0}, NULL_VECTOR);
-		}
+			CreateTimer(0.01, Timer_Respawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
 	
 	return Plugin_Continue;
+}
+
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------Timer_Respawn		(type: Timer)
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+public Action:Timer_Respawn(Handle:timer, any:data)
+{
+	new client = GetClientOfUserId(data);
+	if(client)
+		TF2_RespawnPlayer(client);
 }
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 ------Event_Death_Block		(type: Event)
@@ -185,13 +190,20 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 	//Reset the player's movement, if he can't move :<
 	if(GetEntityMoveType(client) == MOVETYPE_NONE)
 		SetEntityMoveType(client, MOVETYPE_NONE);
+	//Reset a player's color
+	if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
+	{
+		SetEntityRenderColor(client, 255,255,255,255);
+		SetEntityRenderMode(client,  RENDER_NORMAL);
+	}
 	//Idle player Attributes applied when the player is spawned
 	if(isIdlePlayer[client])
 	{
+		team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
+		TeleportEntity(client, spawnpoints[team], Float:{0.0,0.0,0.0}, NULL_VECTOR);
 		//Color Idle Player team corrective.
 		if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
 		{
-			team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
 			SetEntityRenderColor(client, idlecolors[team][0], \
 										 idlecolors[team][1], \
 										 idlecolors[team][2], \
@@ -234,10 +246,13 @@ public LoadConfig()
 public SMCResult:NewSection(Handle:smc, const String:name[], bool:opt_quotes) { }
 public SMCResult:EndSection(Handle:smc) {
 	//Just makes so we dont color people when they have this disabled...
+	new bool:notdefault = false;
 	for(new j = 0; j < 2; j++)
 		for(new k = 0; k < 4; k++)
 			if( idlecolors[j][k] != 255 )
-				StrangeIdleConfig &= ~SLVLR_ColorIdlePlayer;
+				notdefault = true;
+	if(!notdefault)
+		StrangeIdleConfig &= ~SLVLR_ColorIdlePlayer;
 }  
 public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], bool:key_quotes, bool:value_quotes) 
 {
@@ -264,13 +279,12 @@ public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], 
 		StrangeIdleConfig |= SLVLR_RespawnPlayerOnReturn;
 	else if(StrEqual(key, "Color Idle Players", false) && StringToInt(value))
 		StrangeIdleConfig |= SLVLR_ColorIdlePlayer;
-
 	if(StrContains(key, "Idle Color") != -1)
 	{
 		new String:sColorExplode[4][8];
 		//Split the string into a color vector
 		ExplodeString(value, " ", sColorExplode, 4, 8);
-		new clr = (StrEqual(key, "Idle Color 2", false)) ? 1 : 0;
+		new clr = (StrEqual(key, "Idle Color 2", false)) ? 0 : 1;
 		idlecolors[clr][0] = StringToInt(sColorExplode[0]);
 		idlecolors[clr][1] = StringToInt(sColorExplode[1]);
 		idlecolors[clr][2] = StringToInt(sColorExplode[2]);

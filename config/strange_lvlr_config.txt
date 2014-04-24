@@ -1,17 +1,26 @@
 "Strange Lvlr"
 {
+	//Time to wait if a player has no input, before considering him as an idle.
 	"Idle Time"			"60.0"
 	
+	//Spawn locations, this will probably change to configs
+	//Leave at 0.0 to make it find the opposing team's spawn.
 	"Spawn Location 1"	"0.0 0.0 0.0" //Red, team 2
 	"Spawn Location 2"	"0.0 0.0 0.0" //Blu, team 3
 	
-	"Disable Movement"			"1"
-	"Remove Weapons"			"0"
-	"Kill Players"				"1"
+	//Sets the movetype to none, this disables any pushback, or falling
+	"Disable Movement"		"1"
+	//Strips all the weapons from the idle player's inventory. (civilian)
+	"Remove Weapons"		"0"
+	//Kill the player once they become marked as 'idle', recommended, so they can respawn at the spawnpoint.
+	"Kill Players"			"1"
+	//Respawns the player at their own team's spawn if the player returns from idling. 
+	//(recommended so the player doesnt have to wait to respawn, \
+	//	also if weapons aren't disabled it will stop any killing he does.)
 	"Respawn Player On Return"	"1"
 	
-	//Idle colors
-	"Color Idle Players"		"0"
-	"Idle Colors 1"		"255 0 0 200" //Red or team 2
-	"Idle Colors 2"		"0 0 255 200" //Blu, team 3
+	//Idle colors, Pretty Explanatory..
+	"Color Idle Players"	"0" // Set to 1 to enable.
+	"Idle Colors 1"		"255 0 0 225" //Red or team 2
+	"Idle Colors 2"		"0 0 255 225" //Blu, team 3
 }
