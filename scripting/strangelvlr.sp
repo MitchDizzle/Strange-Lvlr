@@ -12,7 +12,7 @@
 #include <sdktools>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "1.2.5"
+#define PLUGIN_VERSION "1.2.6"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
@@ -124,6 +124,11 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if(!g_bEnabled)
 		return Plugin_Continue;
+
+	new iFlags = GetEventInt(event, "death_flags");
+	if(iFlags & TF_DEATHFLAG_DEADRINGER)
+		return Plugin_Continue;
+
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
 	//Check if the player is considered idling.
 	if(isIdlePlayer[client])
@@ -138,7 +143,7 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 		if(team >= 0 && !IsVectorEmpty(spawnpoints[team]))
 			CreateTimer(0.01, Timer_Respawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
-	
+
 	return Plugin_Continue;
 }
 
