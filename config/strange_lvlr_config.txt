@@ -18,6 +18,8 @@
 	//(recommended so the player doesnt have to wait to respawn, \
 	//	also if weapons aren't disabled it will stop any killing he does.)
 	"Respawn Player On Return"	"1"
+	//Sets the idle player to near death (10 hp) for easier killing
+	"Near Death"			"1"
 	
 	//Idle colors, Pretty Explanatory..
 	"Color Idle Players"	"0" // Set to 1 to enable.

@@ -12,7 +12,7 @@
 #include <sdktools>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "1.2.0"
+#define PLUGIN_VERSION "1.2.5"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
@@ -38,6 +38,7 @@ new Float:g_fIdleTime = 60.0; // This is the default!
 #define SLVLR_KillPlayerOnIdle			(1 << 2)
 #define SLVLR_RespawnPlayerOnReturn		(1 << 3)
 #define SLVLR_ColorIdlePlayer			(1 << 4)
+#define SLVLR_NearDeath					(1 << 5)
 new StrangeIdleConfig;
 
 public OnPluginStart()
@@ -216,6 +217,9 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 		//Remove all teh weapons!
 		if(StrangeIdleConfig & SLVLR_RemoveWeapons)
 			TF2_RemoveAllWeapons(client);
+		//You're basically killing them already!
+		if(StrangeIdleConfig & SLVLR_NearDeath)
+			SetEntityHealth(client, 10);
 	}
 	return Plugin_Continue;
 }
@@ -279,6 +283,8 @@ public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], 
 		StrangeIdleConfig |= SLVLR_RespawnPlayerOnReturn;
 	else if(StrEqual(key, "Color Idle Players", false) && StringToInt(value))
 		StrangeIdleConfig |= SLVLR_ColorIdlePlayer;
+	else if(StrEqual(key, "Near Death", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_NearDeath;
 	if(StrContains(key, "Idle Color") != -1)
 	{
 		new String:sColorExplode[4][8];
