@@ -10,9 +10,10 @@
 
 #pragma semicolon 1
 #include <sdktools>
+#include <sdkhooks>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "1.2.7"
+#define PLUGIN_VERSION "1.3.0"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
@@ -23,6 +24,7 @@ public Plugin:myinfo = {
 }
 //Global vars
 new bool:isIdlePlayer[MAXPLAYERS+1];
+new bool:isIdleKiller[MAXPLAYERS+1];
 new Float:spawnpoints[2][3];
 
 //Config vars and handles.
@@ -52,6 +54,8 @@ public OnPluginStart()
 	HookEvent("player_spawn", Event_Spawn);
 	HookEvent("player_death", Event_Death);
 	HookEvent("player_death", Event_Death_Block, EventHookMode_Pre);
+	RegConsoleCmd("sm_idle", Command_Idle);
+	RegConsoleCmd("sm_idlekiller", Command_IdleKiller);
 }
 
 public OnMapStart()
@@ -64,7 +68,62 @@ public OnMapStart()
 	CreateTimer(0.1, Timer_LastInput, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 	//Reset the players back to 0.0 time
 	for(new i = 1; i <= MaxClients; i++)
+	{
 		isIdlePlayer[i] = false;
+		isIdleKiller[i] = false;
+		if(IsClientInGame(i))
+			SDKHook(i, SDKHook_PostThink, PostThinkHook);
+	}
+}
+
+public OnClientPostAdminCheck(client)
+{
+	SDKHook(client, SDKHook_PostThink, PostThinkHook);
+}
+
+public Action:Command_Idle(client, args)
+{
+	if (client)
+	{
+		isIdlePlayer[client] = true;
+		if(StrangeIdleConfig & SLVLR_KillPlayerOnIdle)
+			ForcePlayerSuicide(client);
+	}
+	return Plugin_Handled;
+}
+
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------Command_IdleKiller		(type: SDKHooks)
+	This command is insane, it starts the idle killer process,
+	which is around 10-20 kills a second with one idle player.
+	RECOMMEND THIS BEING AN ADMIN COMMAND.
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+public Action:Command_IdleKiller(client, args)
+{
+	if (client)
+		isIdleKiller[client] = !isIdleKiller[client];
+	return Plugin_Handled;
+}
+
+/*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+------PostThinkHook		(type: SDKHooks)
+	Shhh. This is what makes the kills faster.
+	more idle players the faster you level up your weapon.
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
+public PostThinkHook(client)
+{
+	if(isIdleKiller[client] && IsPlayerAlive(client))
+	{
+		new playerweapon = GetEntPropEnt(client, Prop_Send, "m_hActiveWeapon");
+		for(new i = 1; i <= MaxClients; i++)
+		{
+			if(IsClientInGame(i) && IsPlayerAlive(i) && isIdlePlayer[i])
+			{
+				SDKHooks_TakeDamage(i, client, client, 1337.0, 135270528, playerweapon);
+				TF2_RespawnPlayer(i);
+			}
+		}
+	}
 }
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -104,6 +163,7 @@ public Action:Timer_LastInput(Handle:timer)
 					if(lastInput[i] > g_fIdleTime)
 					{
 						isIdlePlayer[i] = true;
+						isIdleKiller[client] = false;
 						if(StrangeIdleConfig & SLVLR_KillPlayerOnIdle)
 							ForcePlayerSuicide(i);
 					}
@@ -131,8 +191,10 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 		return Plugin_Continue;
 
 	new client = GetClientOfUserId(GetEventInt(event, "userid"));
+	new attacker = GetClientOfUserId(GetEventInt(event, "attacker"));
+	if(!client) return Plugin_Continue;
 	//Check if the player is considered idling.
-	if(isIdlePlayer[client])
+	if(isIdlePlayer[client] && !isIdleKiller[attacker])
 	{
 		new team = GetClientTeam(client);
 		// This will get the opposite team.
