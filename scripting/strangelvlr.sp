@@ -219,12 +219,12 @@ public Action:Timer_Respawn(Handle:timer, any:data)
 	if(client)
 		TF2_RespawnPlayer(client);
 }
+
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 ------Event_Death_Block		(type: Event)
 	This method is to block the kill feed from any idle kills,
 	this hopefully will clear up spam from people killing the idles.
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
-
 public Action:Event_Death_Block(Handle:event, const String:name[], bool:dontBroadcast)
 {
 	if(!g_bEnabled)
@@ -305,7 +305,9 @@ public OnCvarChanged(Handle:cvar, const String:oldVal[], const String:newVal[])
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 ------LoadConfig		(type: Public Function)
-	Loads the config from
+	Loads the config from configs/strange_lvlr_config.txt
+	Not very dynamic, needs a map starts/plugin restart every time you
+	want to change an option. (ie custom map spawns aren't very good)
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<*/
 public LoadConfig()
 {
