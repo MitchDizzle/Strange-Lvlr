@@ -1,4 +1,4 @@
-"Strange Lvlr"
+"Strange Lvlr" // 0 - False, 1 - True
 {
 	//Time to wait if a player has no input, before considering him as an idle.
 	"Idle Time"			"60.0"
@@ -20,6 +20,9 @@
 	"Respawn Player On Return"	"1"
 	//Sets the idle player to near death (10 hp) for easier killing
 	"Near Death"			"1"
+
+	//If the idle plugin will ignore bots
+	"Ignore Bots"			"0"
 	
 	//Idle colors, Pretty Explanatory..
 	"Color Idle Players"	"0" // Set to 1 to enable.

@@ -39,6 +39,7 @@ new Float:g_fIdleTime = 60.0; // This is the default!
 #define SLVLR_RespawnPlayerOnReturn		(1 << 3)
 #define SLVLR_ColorIdlePlayer			(1 << 4)
 #define SLVLR_NearDeath					(1 << 5)
+#define SLVLR_IgnoreBots				(1 << 6)
 new StrangeIdleConfig;
 
 public OnPluginStart()
@@ -81,7 +82,7 @@ public Action:Timer_LastInput(Handle:timer)
 	static Float:lastInput[MAXPLAYERS+1];
 	for(new i = 1; i <= MaxClients; i++)
 	{
-		if(IsClientInGame(i))
+		if(IsClientInGame(i) && (StrangeIdleConfig & SLVLR_IgnoreBots && IsFakeClient(i)))
 		{
 			if(GetClientTeam(i) > 1 && IsPlayerAlive(i))
 			{
@@ -189,6 +190,8 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 		return Plugin_Continue;
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
+	if(StrangeIdleConfig & SLVLR_IgnoreBots && IsFakeClient(client))
+		return Plugin_Continue;
 
 	new team = GetClientTeam(client);
 	if(IsVectorEmpty(spawnpoints[team-2]))
@@ -290,6 +293,8 @@ public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], 
 		StrangeIdleConfig |= SLVLR_ColorIdlePlayer;
 	else if(StrEqual(key, "Near Death", false) && StringToInt(value))
 		StrangeIdleConfig |= SLVLR_NearDeath;
+	else if(StrEqual(key, "Ignore Bots", false) && StringToInt(value))
+		StrangeIdleConfig |= SLVLR_IgnoreBots;
 	if(StrContains(key, "Idle Color") != -1)
 	{
 		new String:sColorExplode[4][8];
