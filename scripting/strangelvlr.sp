@@ -12,7 +12,7 @@
 #include <sdktools>
 #include <tf2_stocks>
 
-#define PLUGIN_VERSION "1.2.6"
+#define PLUGIN_VERSION "1.2.7"
 
 public Plugin:myinfo = {
 	name = "Strange Lvlr",
@@ -24,11 +24,11 @@ public Plugin:myinfo = {
 //Global vars
 new bool:isIdlePlayer[MAXPLAYERS+1];
 new Float:spawnpoints[2][3];
-new idlecolors[2][4];
 
 //Config vars and handles.
 new Handle:g_hEnabled;
 new bool:g_bEnabled = true;
+new idlecolors[2][4];
 
 new Float:g_fIdleTime = 60.0; // This is the default!
 
