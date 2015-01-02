@@ -11,7 +11,10 @@
 #pragma semicolon 1
 #include <sdktools>
 #include <sdkhooks>
+
+#undef REQUIRE_EXTENSIONS
 #include <tf2_stocks>
+#include <cstrike>
 
 #define PLUGIN_VERSION "1.3.0"
 
@@ -42,7 +45,10 @@ new Float:g_fIdleTime = 60.0; // This is the default!
 #define SLVLR_ColorIdlePlayer			(1 << 4)
 #define SLVLR_NearDeath					(1 << 5)
 #define SLVLR_IgnoreBots				(1 << 6)
+#define SLVLR_BotAutoIdle				(1 << 7)
 new StrangeIdleConfig;
+
+new EngineVersion:EVGame;
 
 public OnPluginStart()
 {
@@ -54,8 +60,11 @@ public OnPluginStart()
 	HookEvent("player_spawn", Event_Spawn);
 	HookEvent("player_death", Event_Death);
 	HookEvent("player_death", Event_Death_Block, EventHookMode_Pre);
+
 	RegConsoleCmd("sm_idle", Command_Idle);
 	RegConsoleCmd("sm_idlekiller", Command_IdleKiller);
+
+	EVGame = GetEngineVersion();
 }
 
 public OnMapStart()
@@ -141,8 +150,9 @@ public Action:Timer_LastInput(Handle:timer)
 	static Float:lastInput[MAXPLAYERS+1];
 	for(new i = 1; i <= MaxClients; i++)
 	{
-		if(IsClientInGame(i) && (StrangeIdleConfig & SLVLR_IgnoreBots && IsFakeClient(i)))
+		if(IsClientInGame(i) && !(StrangeIdleConfig & SLVLR_IgnoreBots && IsFakeClient(i)))
 		{
+			//StrangeIdleConfig & SLVLR_IgnoreBots
 			if(GetClientTeam(i) > 1 && IsPlayerAlive(i))
 			{
 				if(GetClientButtons(i) > 0)
@@ -151,21 +161,21 @@ public Action:Timer_LastInput(Handle:timer)
 					if(isIdlePlayer[i])
 					{
 						isIdlePlayer[i] = false;
-						if(StrangeIdleConfig & SLVLR_RespawnPlayerOnReturn)
-							TF2_RespawnPlayer(i);
+						UnIdlePlayer(i);
+						if(StrangeIdleConfig & SLVLR_RespawnPlayerOnReturn) {
+							RevivePlayer(i);
+						}
 					}
 				}
-				else 
-				{
-					if(isIdlePlayer[i])
-						continue;
+				else if(!isIdlePlayer[i]) {
 					lastInput[i] += 0.1;
 					if(lastInput[i] > g_fIdleTime)
 					{
 						isIdlePlayer[i] = true;
-						isIdleKiller[client] = false;
-						if(StrangeIdleConfig & SLVLR_KillPlayerOnIdle)
+						isIdleKiller[i] = false;
+						if(StrangeIdleConfig & SLVLR_KillPlayerOnIdle) {
 							ForcePlayerSuicide(i);
+						}
 					}
 				}
 			}
@@ -198,12 +208,10 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 	{
 		new team = GetClientTeam(client);
 		// This will get the opposite team.
-		// If the player is not on a team, then it will return -1.
+		// If the player is not on a playable team, then it will return -1.
 		team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
 		//Team is greater than -1, means he is still on a team!
-		// Checks to make sure there are valid spawn points still!
-		// This also makes sure that the Event_Spawn doesn't bug out.
-		if(team >= 0 && !IsVectorEmpty(spawnpoints[team]))
+		if(team >= 0)
 			CreateTimer(0.01, Timer_Respawn, GetClientUserId(client), TIMER_FLAG_NO_MAPCHANGE);
 	}
 
@@ -216,8 +224,7 @@ public Action:Event_Death(Handle:event, const String:name[], bool:dontBroadcast)
 public Action:Timer_Respawn(Handle:timer, any:data)
 {
 	new client = GetClientOfUserId(data);
-	if(client)
-		TF2_RespawnPlayer(client);
+	if(client) RevivePlayer(client);
 }
 
 /*>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -252,26 +259,23 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 		return Plugin_Continue;
 	if(!IsPlayerAlive(client))
 		return Plugin_Continue;
+
+	new team = GetClientTeam(client);
+	team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
+	if(team >= 0 && IsVectorEmpty(spawnpoints[team])) {
+		GetClientAbsOrigin(client, spawnpoints[team]);
+	}
+
 	if(StrangeIdleConfig & SLVLR_IgnoreBots && IsFakeClient(client))
 		return Plugin_Continue;
 
-	new team = GetClientTeam(client);
-	if(IsVectorEmpty(spawnpoints[team-2]))
-		GetClientAbsOrigin(client, spawnpoints[team-2]);
-	//Reset the player's movement, if he can't move :<
-	if(GetEntityMoveType(client) == MOVETYPE_NONE)
-		SetEntityMoveType(client, MOVETYPE_NONE);
-	//Reset a player's color
-	if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
-	{
-		SetEntityRenderColor(client, 255,255,255,255);
-		SetEntityRenderMode(client,  RENDER_NORMAL);
-	}
 	//Idle player Attributes applied when the player is spawned
 	if(isIdlePlayer[client])
 	{
 		team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
-		TeleportEntity(client, spawnpoints[team], Float:{0.0,0.0,0.0}, NULL_VECTOR);
+		if(!IsVectorEmpty(spawnpoints[team])) { // Don't Teleport if the spawn location isn't set.
+			TeleportEntity(client, spawnpoints[team], Float:{0.0,0.0,0.0}, NULL_VECTOR);
+		}
 		//Color Idle Player team corrective.
 		if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
 		{
@@ -282,14 +286,17 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 			SetEntityRenderMode(client, (idlecolors[team][3] < 255) ? RENDER_TRANSALPHA : RENDER_NORMAL);
 		}
 		//Disable Movement:
-		if(StrangeIdleConfig & SLVLR_DisableMovement)
+		if(StrangeIdleConfig & SLVLR_DisableMovement) {
 			SetEntityMoveType(client, MOVETYPE_NONE);
+		}
 		//Remove all teh weapons!
-		if(StrangeIdleConfig & SLVLR_RemoveWeapons)
+		if(StrangeIdleConfig & SLVLR_RemoveWeapons) {
 			TF2_RemoveAllWeapons(client);
+		}
 		//You're basically killing them already!
-		if(StrangeIdleConfig & SLVLR_NearDeath)
+		if(StrangeIdleConfig & SLVLR_NearDeath) {
 			SetEntityHealth(client, 10);
+		}
 	}
 	return Plugin_Continue;
 }
@@ -382,4 +389,27 @@ public SMCResult:KeyValue(Handle:smc, const String:key[], const String:value[], 
 stock bool:IsVectorEmpty(Float:fVector[3])
 {
 	return GetVectorDistance(fVector, Float:{0.0, 0.0, 0.0}) <= 0.1;
+}
+
+stock RevivePlayer(client) {
+	switch(EVGame) {
+		case Engine_CSGO, Engine_CSS: {
+			CS_RespawnPlayer(client);
+		} case Engine_TF2: {
+			TF2_RespawnPlayer(client);
+		}
+	}
+}
+
+stock UnIdlePlayer(client) {
+	//Reset the player's movement, if he can't move :<
+	if(GetEntityMoveType(client) == MOVETYPE_NONE) {
+		SetEntityMoveType(client, MOVETYPE_WALK);
+	}
+	//Reset a player's color
+	if(StrangeIdleConfig & SLVLR_ColorIdlePlayer)
+	{
+		SetEntityRenderColor(client, 255,255,255,255);
+		SetEntityRenderMode(client,  RENDER_NORMAL);
+	}
 }
