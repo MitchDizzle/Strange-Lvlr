@@ -129,7 +129,7 @@ public PostThinkHook(client)
 			if(IsClientInGame(i) && IsPlayerAlive(i) && isIdlePlayer[i])
 			{
 				SDKHooks_TakeDamage(i, client, client, 1337.0, 135270528, playerweapon);
-				TF2_RespawnPlayer(i);
+				RevivePlayer(i);
 			}
 		}
 	}
@@ -272,7 +272,7 @@ public Action:Event_Spawn(Handle:event, const String:name[], bool:dontBroadcast)
 	//Idle player Attributes applied when the player is spawned
 	if(isIdlePlayer[client])
 	{
-		team = (team > 1) ? (team == 2) ? 1 : 0 : -1;
+		team = (team > 1) ? (team == 2) ? 1 : 0 : 0;
 		if(!IsVectorEmpty(spawnpoints[team])) { // Don't Teleport if the spawn location isn't set.
 			TeleportEntity(client, spawnpoints[team], Float:{0.0,0.0,0.0}, NULL_VECTOR);
 		}

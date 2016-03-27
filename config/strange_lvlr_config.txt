@@ -1,7 +1,7 @@
 "Strange Lvlr" // 0 - False, 1 - True
 {
 	//Time to wait if a player has no input, before considering him as an idle.
-	"Idle Time"			"60.0"
+	"Idle Time"			"10.0"
 	
 	//Spawn locations, this will probably change to configs
 	//Leave at 0.0 to make it find the opposing team's spawn.
